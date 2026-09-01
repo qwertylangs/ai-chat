@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+.venv/
+
+# Local env / secrets
+.env
+
+# DB files
+chat.db
+
+# Node
+node_modules/
+front/dist/
+
+# Misc
+.DS_Store
+*.log
