@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { api } from '../api'
 import type { Chat, Message } from '../api'
 
@@ -11,6 +11,20 @@ const messages = ref<Message[]>([])
 const input = ref('')
 const streaming = ref(false)
 const error = ref('')
+const messagesEl = ref<HTMLElement | null>(null)
+
+function scrollToBottom() {
+  nextTick(() => {
+    const el = messagesEl.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
+/** Прилипаем к низу, только пока пользователь не отмотал ленту вверх сам. */
+function isAtBottom() {
+  const el = messagesEl.value
+  return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
 
 onMounted(async () => {
   try {
@@ -24,6 +38,7 @@ async function selectChat(chatId: number) {
   if (streaming.value || chatId === activeChatId.value) return
   activeChatId.value = chatId
   messages.value = await api.listMessages(chatId)
+  scrollToBottom()
 }
 
 async function createNewChat() {
@@ -56,8 +71,11 @@ async function send() {
     const assistantIndex = messages.value.push(localMessage(chatId, 'assistant', '')) - 1
 
     streaming.value = true
+    scrollToBottom()
     await api.sendMessage(chatId, content, (chunk) => {
+      const stick = isAtBottom()
       messages.value[assistantIndex].content += chunk
+      if (stick) scrollToBottom()
     })
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Unknown error'
@@ -114,7 +132,7 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
         <p class="hint">Напишите первое сообщение — чат создастся автоматически</p>
       </div>
 
-      <div v-else class="messages">
+      <div v-else ref="messagesEl" class="messages">
         <div v-for="msg in messages" :key="msg.id" :class="['message', msg.role]">
           <div class="bubble">{{ msg.content }}</div>
         </div>

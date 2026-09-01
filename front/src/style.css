@@ -44,7 +44,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 32px;
-  width: 340px;
+  width: min(440px, 90vw);
   display: flex;
   flex-direction: column;
   gap: 12px;
