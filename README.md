@@ -31,7 +31,8 @@ ai-chat/
 │       └── components/         # AuthView.vue, ChatView.vue
 ├── e2e/                        # Playwright: стаб OpenRouter + happy-path сценарий
 ├── CONTEXT.md                  # глоссарий предметной области
-└── docs/adr/                   # зафиксированные решения
+├── docs/adr/                   # зафиксированные решения
+└── docs/superpowers/           # спеки и планы реализации фич
 ```
 
 ## Запуск

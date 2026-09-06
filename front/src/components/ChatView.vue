@@ -12,6 +12,7 @@ const input = ref('')
 const streaming = ref(false)
 const error = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
+const search = ref('')
 
 const canSend = computed(() => {
   const content = input.value.trim()
@@ -26,12 +27,19 @@ const activeChatTitle = computed(() => {
   return chats.value.find(({id}) => id === activeChatId.value)?.title
 })
 
-watch(activeChatId, async (id, oldId, oncl) => {
+const filteredChats = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  if (!query) return chats.value
+
+  return chats.value.filter((chat) => chat.title.toLowerCase().includes(query))
+})
+
+watch(activeChatId, async (id) => {
   if (!id) return;
   messages.value = await api.listMessages(id)
 })
 
-watch(error, (err, oldErr, onCleanUp) => {
+watch(error, (_err, _oldErr, onCleanUp) => {
   const id = setTimeout(() => {
     error.value = ''
   })
@@ -72,6 +80,7 @@ async function createNewChat() {
   chats.value.unshift(chat)
   activeChatId.value = chat.id
   messages.value = []
+  search.value = ''
 }
 
 /** Первый же вопрос создаёт чат автоматически (название присвоит бэкенд). */
@@ -88,6 +97,7 @@ async function send() {
       chats.value.unshift(chat)
       chatId = chat.id
       activeChatId.value = chatId
+      search.value = ''
     }
 
     // Локально показываем сообщение пользователя и пустого ассистента.
@@ -135,8 +145,14 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
         ＋ Новый чат
       </button>
 
+      <input v-model="search" placeholder="Поиск по чатам" />
+
+      <p v-if="search.trim() && !filteredChats.length" class="no-results">
+        Ничего не найдено
+      </p>
+
       <ul class="chat-list">
-        <li v-for="chat in chats" :key="chat.id">
+        <li v-for="chat in filteredChats" :key="chat.id">
           <button
             :class="{ active: chat.id === activeChatId }"
             :disabled="streaming"
