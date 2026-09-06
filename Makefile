@@ -1,11 +1,14 @@
-.PHONY: help install dev api front build prod clean
+.PHONY: help install hooks dev api front lint test build prod clean
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
 
-install: ## Поставить зависимости бэка и фронта
+install: hooks ## Поставить зависимости бэка и фронта
 	cd api && uv sync
 	cd front && npm install
+
+hooks: ## Включить git pre-commit хук (.githooks)
+	git config core.hooksPath .githooks
 
 dev: ## Всё вместе: бэк :8000 + фронт :5173
 	$(MAKE) -j2 api front
@@ -15,6 +18,12 @@ api: ## Только бэкенд (:8000, reload)
 
 front: ## Только фронтенд (:5173, Vite dev)
 	cd front && npm run dev
+
+lint: ## eslint по фронту
+	cd front && npm run lint
+
+test: ## unit-тесты фронта (разовый прогон)
+	cd front && npm test -- --run
 
 build: ## Собрать фронт в front/dist
 	cd front && npm run build

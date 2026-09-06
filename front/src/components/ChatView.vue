@@ -22,9 +22,9 @@ const canSend = computed(() => {
 })
 
 const activeChatTitle = computed(() => {
-  if (!activeChatId) return ''
+  if (!activeChatId.value) return ''
 
-  return chats.value.find(({id}) => id === activeChatId.value)?.title
+  return chats.value.find(({ id }) => id === activeChatId.value)?.title
 })
 
 const filteredChats = computed(() => {

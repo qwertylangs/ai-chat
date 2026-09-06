@@ -1,0 +1,10 @@
+#!/bin/sh
+# Гоняем линт и unit-тесты фронта. Пропускаем, если в коммите нет изменений под front/.
+set -e
+
+if git diff --cached --name-only | grep -q '^front/'; then
+  echo "pre-commit: front lint + unit tests"
+  cd front
+  npm run lint
+  npm test -- --run
+fi

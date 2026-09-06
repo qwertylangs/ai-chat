@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
@@ -12,5 +13,8 @@ export default defineConfig({
       '/api': apiTarget,
       '/auth': apiTarget,
     },
+  },
+  test: {
+    environment: 'happy-dom',
   },
 })

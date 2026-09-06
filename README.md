@@ -25,10 +25,13 @@ ai-chat/
 │           └── chat.py         # /api/chats..., /api/chats/{id}/messages (SSE)
 ├── front/                      # фронтенд (npm)
 │   ├── vite.config.ts          # proxy /api и /auth → localhost:8000
+│   ├── eslint.config.js        # flat config: typescript-eslint + eslint-plugin-vue (essential)
 │   └── src/
 │       ├── api.ts              # fetch-обёртка + парсер SSE
+│       ├── api.test.ts         # unit-тесты api.ts (Vitest)
 │       ├── App.vue             # переключение вход/чат
 │       └── components/         # AuthView.vue, ChatView.vue
+├── .githooks/pre-commit        # линт + unit-тесты фронта перед коммитом
 ├── e2e/                        # Playwright: стаб OpenRouter + happy-path сценарий
 ├── CONTEXT.md                  # глоссарий предметной области
 ├── docs/adr/                   # зафиксированные решения
@@ -61,6 +64,18 @@ CORS не нужен.
 
 **«Prod»-режим**: `npm run build` во `front/` → бэкенд сам отдаёт `front/dist/`
 (см. `app/main.py`).
+
+## Проверки фронта
+
+```bash
+cd front
+npm run lint   # eslint (flat config)
+npm test       # vitest (watch); npm test -- --run — разовый прогон
+```
+
+Pre-commit хук (`.githooks/pre-commit`) гоняет `lint` + тесты, если в коммите есть
+изменения под `front/`. Включается один раз на клоне: `make hooks` (или
+`git config core.hooksPath .githooks`); `make install` делает это автоматически.
 
 ## API
 
