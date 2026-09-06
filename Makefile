@@ -22,8 +22,9 @@ front: ## Только фронтенд (:5173, Vite dev)
 lint: ## eslint по фронту
 	cd front && npm run lint
 
-test: ## unit-тесты фронта (разовый прогон)
+test: ## unit-тесты фронта + pytest бэкенда
 	cd front && npm test -- --run
+	cd api && uv run pytest -q
 
 build: ## Собрать фронт в front/dist
 	cd front && npm run build

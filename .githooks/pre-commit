@@ -1,5 +1,5 @@
 #!/bin/sh
-# Гоняем линт и unit-тесты фронта. Пропускаем, если в коммите нет изменений под front/.
+# Гоняем линт и unit-тесты фронта/бэка. Пропускаем каждый, если в коммите нет изменений под его папкой.
 set -e
 
 if git diff --cached --name-only | grep -q '^front/'; then
@@ -7,4 +7,11 @@ if git diff --cached --name-only | grep -q '^front/'; then
   cd front
   npm run lint
   npm test -- --run
+  cd ..
+fi
+
+if git diff --cached --name-only | grep -q '^api/'; then
+  echo "pre-commit: api tests"
+  cd api
+  uv run pytest -q
 fi

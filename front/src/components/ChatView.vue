@@ -13,6 +13,8 @@ const streaming = ref(false)
 const error = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
 const search = ref('')
+const searchResults = ref<Chat[]>([])
+const searching = ref(false)
 
 const canSend = computed(() => {
   const content = input.value.trim()
@@ -27,11 +29,34 @@ const activeChatTitle = computed(() => {
   return chats.value.find(({ id }) => id === activeChatId.value)?.title
 })
 
-const filteredChats = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  if (!query) return chats.value
+const displayedChats = computed(() =>
+  search.value.trim() ? searchResults.value : chats.value,
+)
 
-  return chats.value.filter((chat) => chat.title.toLowerCase().includes(query))
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+let searchSeq = 0
+
+watch(search, (value) => {
+  clearTimeout(searchTimer)
+  const query = value.trim()
+  const mine = ++searchSeq // ответы всех предыдущих запросов теперь неактуальны
+  if (!query) {
+    searching.value = false
+    searchResults.value = []
+    return
+  }
+  searching.value = true
+  searchTimer = setTimeout(async () => {
+    try {
+      const results = await api.searchChats(query)
+      if (mine === searchSeq) searchResults.value = results
+    } catch (err) {
+      if (mine === searchSeq)
+        error.value = err instanceof Error ? err.message : 'Unknown error'
+    } finally {
+      if (mine === searchSeq) searching.value = false
+    }
+  }, 250)
 })
 
 watch(activeChatId, async (id) => {
@@ -42,7 +67,7 @@ watch(activeChatId, async (id) => {
 watch(error, (_err, _oldErr, onCleanUp) => {
   const id = setTimeout(() => {
     error.value = ''
-  })
+  }, 5000)
 
   onCleanUp(() => clearTimeout(id))
 })
@@ -147,12 +172,15 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
 
       <input v-model="search" placeholder="Поиск по чатам" />
 
-      <p v-if="search.trim() && !filteredChats.length" class="no-results">
+      <p
+        v-if="search.trim() && !searching && !displayedChats.length"
+        class="no-results"
+      >
         Ничего не найдено
       </p>
 
       <ul class="chat-list">
-        <li v-for="chat in filteredChats" :key="chat.id">
+        <li v-for="chat in displayedChats" :key="chat.id">
           <button
             :class="{ active: chat.id === activeChatId }"
             :disabled="streaming"
