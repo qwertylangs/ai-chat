@@ -29,6 +29,7 @@ ai-chat/
 │       ├── api.ts              # fetch-обёртка + парсер SSE
 │       ├── App.vue             # переключение вход/чат
 │       └── components/         # AuthView.vue, ChatView.vue
+├── e2e/                        # Playwright: стаб OpenRouter + happy-path сценарий
 ├── CONTEXT.md                  # глоссарий предметной области
 └── docs/adr/                   # зафиксированные решения
 ```
@@ -84,3 +85,17 @@ CORS не нужен.
 | JWT без refresh, пароли — Argon2 | `docs/adr/0003-*` |
 | Кэша нет: ответы LLM кэшировать нельзя; Redis при необходимости добавится рядом с SQLAlchemy | — |
 | Мок-ключ в `.env`: с ним OpenRouter отвечает 401, ошибка доходит до фронта как `event: error` | — |
+| E2E идут через локальный стаб OpenRouter, а не мок в браузере | `docs/adr/0004-*` |
+
+## E2E-тесты
+
+```bash
+cd e2e
+npm install
+npx playwright install chromium   # один раз
+npm test
+```
+
+Playwright сам поднимает три процесса: стаб OpenRouter (8931), бэкенд на 8001 с
+отдельной БД `e2e/.tmp/e2e.db` и vite dev на 5174 — dev-окружение на 8000/5173
+трогать не нужно. Почему стаб, а не мок в браузере — `docs/adr/0004-*`.

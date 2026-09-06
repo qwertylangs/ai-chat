@@ -1,0 +1,11 @@
+{
+  "name": "ai-chat-e2e",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "type": "commonjs",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
