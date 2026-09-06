@@ -11,6 +11,7 @@ ai-chat/
 ├── api/                        # бэкенд (uv / venv)
 │   ├── pyproject.toml          # зависимости: fastapi, sqlalchemy, openai, pyjwt, pwdlib[argon2]
 │   ├── .env / .env.example     # OPENROUTER_API_KEY, JWT_SECRET, DATABASE_URL
+│   ├── tests/                  # pytest: TestClient + in-memory SQLite
 │   └── app/
 │       ├── main.py             # FastAPI + раздача собранного front/dist
 │       ├── config.py           # настройки из .env / переменных окружения
@@ -22,7 +23,7 @@ ai-chat/
 │       ├── openai_client.py    # клиент OpenRouter
 │       └── routers/
 │           ├── auth.py         # /auth/register, /auth/login
-│           └── chat.py         # /api/chats..., /api/chats/{id}/messages (SSE)
+│           └── chat.py         # /api/chats..., /api/chats/search, /api/chats/{id}/messages (SSE)
 ├── front/                      # фронтенд (npm)
 │   ├── vite.config.ts          # proxy /api и /auth → localhost:8000
 │   ├── eslint.config.js        # flat config: typescript-eslint + eslint-plugin-vue (essential)
@@ -65,13 +66,18 @@ CORS не нужен.
 **«Prod»-режим**: `npm run build` во `front/` → бэкенд сам отдаёт `front/dist/`
 (см. `app/main.py`).
 
-## Проверки фронта
+## Проверки
 
 ```bash
 cd front
 npm run lint   # eslint (flat config)
 npm test       # vitest (watch); npm test -- --run — разовый прогон
+
+cd ../api
+uv run pytest  # тесты бэкенда (in-memory SQLite, TestClient)
 ```
+
+`make test` из корня гоняет оба набора сразу.
 
 Pre-commit хук (`.githooks/pre-commit`) гоняет `lint` + тесты, если в коммите есть
 изменения под `front/`. Включается один раз на клоне: `make hooks` (или
@@ -84,6 +90,7 @@ Pre-commit хук (`.githooks/pre-commit`) гоняет `lint` + тесты, е�
 | POST | `/auth/register` | создать пользователя (username, password) |
 | POST | `/auth/login` | получить `access_token` |
 | GET | `/api/chats` | список чатов (свежие сверху) |
+| GET | `/api/chats/search?q=` | чаты, где каждое слово запроса есть в названии или тексте сообщений (регистр и «ё/е» не важны) |
 | POST | `/api/chats` | создать чат (title необязателен) |
 | GET | `/api/chats/{id}/messages` | история сообщений чата |
 | POST | `/api/chats/{id}/messages` | отправить сообщение; ответ — SSE-стрим |

@@ -1,8 +1,8 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
 from app.database import SessionLocal, get_db
@@ -19,9 +19,42 @@ def list_chats(db: Session = Depends(get_db), user: User = Depends(get_current_u
     return (
         db.query(Chat)
         .filter(Chat.user_id == user.id)
-        .order_by(Chat.created_at.desc())
+        .order_by(Chat.created_at.desc(), Chat.id.desc())
         .all()
     )
+
+
+def _fold(text: str) -> str:
+    """Приводит к нижнему регистру и делает «ё» и «е» взаимозаменяемыми."""
+    return text.lower().replace("ё", "е")
+
+
+@router.get("/chats/search", response_model=list[ChatOut])
+def search_chats(
+    q: str = Query(min_length=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Чаты пользователя, у которых каждое слово запроса встречается в названии
+    или в тексте любого сообщения. Порядок — как в list_chats (свежие сверху)."""
+    words = _fold(q).split()
+    if not words:
+        raise HTTPException(422, "Empty search query")
+
+    chats = (
+        db.query(Chat)
+        .filter(Chat.user_id == user.id)
+        .options(selectinload(Chat.messages))
+        .order_by(Chat.created_at.desc(), Chat.id.desc())
+        .all()
+    )
+
+    def matches(chat: Chat) -> bool:
+        haystack = _fold("\n".join([chat.title, *(m.content for m in chat.messages)]))
+        return all(word in haystack for word in words)
+
+    # lazy: фильтр в Python — при тысячах чатов на пользователя перейти на SQL LIKE / FTS5
+    return [chat for chat in chats if matches(chat)]
 
 
 @router.post("/chats", response_model=ChatOut, status_code=status.HTTP_201_CREATED)

@@ -64,6 +64,11 @@ export const api = {
     return request<Chat[]>('/api/chats')
   },
 
+  /** Поиск по названию и содержимому чатов; каждое слово запроса должно совпасть. */
+  searchChats(q: string) {
+    return request<Chat[]>(`/api/chats/search?q=${encodeURIComponent(q)}`)
+  },
+
   createChat(title?: string) {
     return request<Chat>('/api/chats', {
       method: 'POST',

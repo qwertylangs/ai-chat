@@ -66,6 +66,15 @@ test.describe('со списком чатов', () => {
     await expect(page.getByText('Ничего не найдено')).toBeVisible()
   })
 
+  test('находит чат по слову из сообщения, которого нет в названии', async ({ page }) => {
+    // «Собаки» — активный чат после beforeEach; дописываем в него сообщение.
+    await send(page, 'гавкают на почтальона')
+
+    await page.getByPlaceholder('Поиск по чатам').fill('почтальона')
+
+    await expect(page.locator('.chat-list li')).toHaveText('Собаки')
+  })
+
   test('сбрасывает запрос при создании нового чата', async ({ page }) => {
     const search = page.getByPlaceholder('Поиск по чатам')
     await search.fill('кош')

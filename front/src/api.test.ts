@@ -87,6 +87,15 @@ describe('request', () => {
     await expect(api.listChats()).rejects.toThrow('Bad Gateway')
   })
 
+  it('searchChats кодирует запрос в query-параметр', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]))
+
+    await api.searchChats('ёж и уж')
+
+    const [url] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/chats/search?q=%D1%91%D0%B6%20%D0%B8%20%D1%83%D0%B6')
+  })
+
   it('login сохраняет access_token в localStorage', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ access_token: 'tok-1' }))
 
