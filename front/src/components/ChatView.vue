@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import type { Chat, Message } from '../api'
 
@@ -12,6 +12,32 @@ const input = ref('')
 const streaming = ref(false)
 const error = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
+
+const canSend = computed(() => {
+  const content = input.value.trim()
+  if (!content || streaming.value) return false
+
+  return true
+})
+
+const activeChatTitle = computed(() => {
+  if (!activeChatId) return ''
+
+  return chats.value.find(({id}) => id === activeChatId.value)?.title
+})
+
+watch(activeChatId, async (id, oldId, oncl) => {
+  if (!id) return;
+  messages.value = await api.listMessages(id)
+})
+
+watch(error, (err, oldErr, onCleanUp) => {
+  const id = setTimeout(() => {
+    error.value = ''
+  })
+
+  onCleanUp(() => clearTimeout(id))
+})
 
 function scrollToBottom() {
   nextTick(() => {
@@ -37,7 +63,6 @@ onMounted(async () => {
 async function selectChat(chatId: number) {
   if (streaming.value || chatId === activeChatId.value) return
   activeChatId.value = chatId
-  messages.value = await api.listMessages(chatId)
   scrollToBottom()
 }
 
@@ -52,7 +77,7 @@ async function createNewChat() {
 /** Первый же вопрос создаёт чат автоматически (название присвоит бэкенд). */
 async function send() {
   const content = input.value.trim()
-  if (!content || streaming.value) return
+  if (!canSend.value) return
   error.value = ''
   input.value = ''
 
@@ -126,6 +151,8 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
     </aside>
 
     <main class="chat-main">
+      <p v-if="activeChatTitle" class="chat-title">{{ activeChatTitle }}</p>
+
       <p v-if="error" class="error-banner">{{ error }}</p>
 
       <div v-if="activeChatId === null" class="empty-state">
@@ -145,7 +172,7 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
           :disabled="streaming"
           placeholder="Сообщение… (Enter — отправить)"
         />
-        <button type="submit" :disabled="streaming || !input.trim()">➤</button>
+        <button type="submit" :disabled="!canSend">➤</button>
       </form>
     </main>
   </div>
