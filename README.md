@@ -92,6 +92,7 @@ Pre-commit хук (`.githooks/pre-commit`) гоняет `lint` + тесты, е�
 | GET | `/api/chats` | список чатов (свежие сверху) |
 | GET | `/api/chats/search?q=` | чаты, где каждое слово запроса есть в названии или тексте сообщений (регистр и «ё/е» не важны) |
 | POST | `/api/chats` | создать чат (title необязателен) |
+| DELETE | `/api/chats/{id}` | удалить чат вместе с его сообщениями (204) |
 | GET | `/api/chats/{id}/messages` | история сообщений чата |
 | POST | `/api/chats/{id}/messages` | отправить сообщение; ответ — SSE-стрим |
 

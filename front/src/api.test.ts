@@ -96,6 +96,21 @@ describe('request', () => {
     expect(url).toBe('/api/chats/search?q=%D1%91%D0%B6%20%D0%B8%20%D1%83%D0%B6')
   })
 
+  it('deleteChat шлёт DELETE и не парсит тело при 204', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 204,
+      statusText: 'No Content',
+      json: () => Promise.reject(new Error('no body')),
+    } as unknown as Response)
+
+    await expect(api.deleteChat(7)).resolves.toBeUndefined()
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/chats/7')
+    expect(init.method).toBe('DELETE')
+  })
+
   it('login сохраняет access_token в localStorage', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ access_token: 'tok-1' }))
 

@@ -208,10 +208,40 @@ button:disabled {
 .chat-title {
   height: 50px;
   background-color: var(--panel);
-  margin-top: 0;
-  padding: 10px 50px 0 0;
+  margin: 0;
+  padding: 0 16px;
   font-size: 22px;
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-title > span {
+  min-width: 0; /* иначе flex-элемент не ужимается и длинный заголовок ломает вёрстку */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delete-chat {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  opacity: 0.6;
+}
+
+.delete-chat:hover {
+  opacity: 1;
+}
+
+.delete-chat:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .error-banner {

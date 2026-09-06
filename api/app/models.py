@@ -33,7 +33,9 @@ class Chat(Base):
 
     owner: Mapped["User"] = relationship(back_populates="chats")
     messages: Mapped[list["Message"]] = relationship(
-        back_populates="chat", order_by="Message.created_at"
+        back_populates="chat",
+        order_by="Message.created_at",
+        cascade="all, delete-orphan",
     )
 
 

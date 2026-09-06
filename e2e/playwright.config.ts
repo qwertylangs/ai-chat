@@ -8,6 +8,8 @@ const DB_FILE = path.join(__dirname, '.tmp', 'e2e.db')
 
 export default defineConfig({
   testDir: './tests',
+  // Один воркер: бэкенд ходит в общий SQLite-файл, параллельные спеки ловят "database is locked".
+  workers: 1,
   use: { baseURL: `http://127.0.0.1:${FRONT_PORT}` },
   webServer: [
     {

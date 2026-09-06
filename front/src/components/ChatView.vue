@@ -99,6 +99,22 @@ async function selectChat(chatId: number) {
   scrollToBottom()
 }
 
+async function deleteActiveChat() {
+  const chatId = activeChatId.value
+  if (chatId === null || streaming.value) return
+  if (!window.confirm('Удалить чат?')) return
+  try {
+    await api.deleteChat(chatId)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Unknown error'
+    return
+  }
+  chats.value = chats.value.filter((c) => c.id !== chatId)
+  activeChatId.value = chats.value[0]?.id ?? null
+  if (activeChatId.value === null) messages.value = []
+  search.value = '' // как при создании чата — показываем результат в сайдбаре
+}
+
 async function createNewChat() {
   if (streaming.value) return
   const chat = await api.createChat()
@@ -195,7 +211,18 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
     </aside>
 
     <main class="chat-main">
-      <p v-if="activeChatTitle" class="chat-title">{{ activeChatTitle }}</p>
+      <header v-if="activeChatTitle" class="chat-title">
+        <button
+          class="delete-chat"
+          :disabled="streaming"
+          aria-label="Удалить чат"
+          title="Удалить чат"
+          @click="deleteActiveChat"
+        >
+          <span aria-hidden="true">🗑</span>
+        </button>
+        <span>{{ activeChatTitle }}</span>
+      </header>
 
       <p v-if="error" class="error-banner">{{ error }}</p>
 
