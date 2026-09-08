@@ -70,6 +70,17 @@ def create_chat(
     return chat
 
 
+@router.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_chat(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    chat = get_own_chat(chat_id, user, db)
+    db.delete(chat)  # сообщения удаляются каскадом (см. Chat.messages)
+    db.commit()
+
+
 @router.get("/chats/{chat_id}/messages", response_model=list[MessageOut])
 def list_messages(
     chat_id: int,

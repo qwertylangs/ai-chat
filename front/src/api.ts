@@ -41,6 +41,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(body.detail ?? 'Request failed')
   }
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
@@ -67,6 +68,10 @@ export const api = {
   /** Поиск по названию и содержимому чатов; каждое слово запроса должно совпасть. */
   searchChats(q: string) {
     return request<Chat[]>(`/api/chats/search?q=${encodeURIComponent(q)}`)
+  },
+
+  deleteChat(id: number) {
+    return request<void>(`/api/chats/${id}`, { method: 'DELETE' })
   },
 
   createChat(title?: string) {
