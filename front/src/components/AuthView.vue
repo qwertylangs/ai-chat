@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { api } from '../api'
+import { useAutoClearError } from '../composables/useAutoClearError'
+import { errorMessage } from '../errors'
 
 const emit = defineEmits<{ login: [] }>()
+
+const { error } = useAutoClearError()
 
 const mode = ref<'login' | 'register'>('login')
 const username = ref('')
 const password = ref('')
-const error = ref('')
 const busy = ref(false)
 
 async function submit() {
@@ -20,7 +23,7 @@ async function submit() {
     await api.login(username.value, password.value)
     emit('login')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Unknown error'
+    error.value = errorMessage(err)
   } finally {
     busy.value = false
   }

@@ -1,102 +1,69 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import type { Chat, Message } from '../api'
+import { useAutoClearError } from '../composables/useAutoClearError'
+import { useAutoScroll } from '../composables/useAutoScroll'
+import { useChatSearch } from '../composables/useChatSearch'
+import { errorMessage } from '../errors'
+import { localMessage } from '../message'
 
 const emit = defineEmits<{ logout: [] }>()
+
+const { error } = useAutoClearError()
+const { search, searchResults, searching } = useChatSearch(error)
+const { containerEl: messagesEl, isAtBottom, scrollToBottom } = useAutoScroll()
 
 const chats = ref<Chat[]>([])
 const activeChatId = ref<number | null>(null)
 const messages = ref<Message[]>([])
 const input = ref('')
 const streaming = ref(false)
-const error = ref('')
-const messagesEl = ref<HTMLElement | null>(null)
-const search = ref('')
-const searchResults = ref<Chat[]>([])
-const searching = ref(false)
 
-const canSend = computed(() => {
-  const content = input.value.trim()
-  if (!content || streaming.value) return false
+const canSend = computed(() => !!input.value.trim() && !streaming.value)
 
-  return true
-})
-
-const activeChatTitle = computed(() => {
-  if (!activeChatId.value) return ''
-
-  return chats.value.find(({ id }) => id === activeChatId.value)?.title
-})
+const activeChat = computed(() =>
+  chats.value.find(({ id }) => id === activeChatId.value),
+)
 
 const displayedChats = computed(() =>
   search.value.trim() ? searchResults.value : chats.value,
 )
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-let searchSeq = 0
+// Чат, созданный прямо сейчас, заведомо пуст — за его историей в сеть не идём.
+let freshChatId: number | null = null
 
-watch(search, (value) => {
-  clearTimeout(searchTimer)
-  const query = value.trim()
-  const mine = ++searchSeq // ответы всех предыдущих запросов теперь неактуальны
-  if (!query) {
-    searching.value = false
-    searchResults.value = []
-    return
-  }
-  searching.value = true
-  searchTimer = setTimeout(async () => {
-    try {
-      const results = await api.searchChats(query)
-      if (mine === searchSeq) searchResults.value = results
-    } catch (err) {
-      if (mine === searchSeq)
-        error.value = err instanceof Error ? err.message : 'Unknown error'
-    } finally {
-      if (mine === searchSeq) searching.value = false
-    }
-  }, 250)
-})
+watch(activeChatId, async (id, _oldId, onCleanUp) => {
+  const isFresh = id === freshChatId
+  freshChatId = null
+  if (id === null || isFresh) return
 
-watch(activeChatId, async (id) => {
-  if (!id) return;
-  messages.value = await api.listMessages(id)
-})
-
-watch(error, (_err, _oldErr, onCleanUp) => {
-  const id = setTimeout(() => {
-    error.value = ''
-  }, 5000)
-
-  onCleanUp(() => clearTimeout(id))
-})
-
-function scrollToBottom() {
-  nextTick(() => {
-    const el = messagesEl.value
-    if (el) el.scrollTop = el.scrollHeight
+  let stale = false // пока грузим, чат могли переключить ещё раз
+  onCleanUp(() => {
+    stale = true
   })
-}
 
-/** Прилипаем к низу, только пока пользователь не отмотал ленту вверх сам. */
-function isAtBottom() {
-  const el = messagesEl.value
-  return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 80
-}
+  try {
+    const loaded = await api.listMessages(id)
+    if (stale) return
+    messages.value = loaded
+    scrollToBottom()
+  } catch (err) {
+    if (!stale) error.value = errorMessage(err)
+  }
+})
 
 onMounted(async () => {
   try {
     chats.value = await api.listChats()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Unknown error'
+    error.value = errorMessage(err)
   }
 })
 
 async function selectChat(chatId: number) {
   if (streaming.value || chatId === activeChatId.value) return
-  activeChatId.value = chatId
-  scrollToBottom()
+  activeChatId.value = chatId // историю подгрузит watch, он же прокрутит вниз
 }
 
 async function deleteActiveChat() {
@@ -106,7 +73,7 @@ async function deleteActiveChat() {
   try {
     await api.deleteChat(chatId)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Unknown error'
+    error.value = errorMessage(err)
     return
   }
   chats.value = chats.value.filter((c) => c.id !== chatId)
@@ -115,13 +82,20 @@ async function deleteActiveChat() {
   search.value = '' // как при создании чата — показываем результат в сайдбаре
 }
 
-async function createNewChat() {
-  if (streaming.value) return
+/** Заводит чат на бэкенде и делает его активным — общий шаг для явного создания и автосоздания в send(). */
+async function createChat(): Promise<Chat> {
   const chat = await api.createChat()
   chats.value.unshift(chat)
+  freshChatId = chat.id
   activeChatId.value = chat.id
-  messages.value = []
   search.value = ''
+  return chat
+}
+
+async function createNewChat() {
+  if (streaming.value) return
+  await createChat()
+  messages.value = []
 }
 
 /** Первый же вопрос создаёт чат автоматически (название присвоит бэкенд). */
@@ -131,15 +105,8 @@ async function send() {
   error.value = ''
   input.value = ''
 
-  let chatId = activeChatId.value
   try {
-    if (chatId === null) {
-      const chat = await api.createChat()
-      chats.value.unshift(chat)
-      chatId = chat.id
-      activeChatId.value = chatId
-      search.value = ''
-    }
+    const chatId = activeChatId.value ?? (await createChat()).id
 
     // Локально показываем сообщение пользователя и пустого ассистента.
     // Пустая заготовка наполняется токенами по мере стрима.
@@ -154,7 +121,7 @@ async function send() {
       if (stick) scrollToBottom()
     })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Unknown error'
+    error.value = errorMessage(err)
   } finally {
     streaming.value = false
     // Синхронизируемся с БД: ассистентское сообщение теперь сохранено сервером,
@@ -165,16 +132,6 @@ async function send() {
         .catch(() => messages.value)
       chats.value = await api.listChats().catch(() => chats.value)
     }
-  }
-}
-
-function localMessage(chatId: number, role: 'user' | 'assistant', content: string): Message {
-  return {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    chat_id: chatId,
-    role,
-    content,
-    created_at: new Date().toISOString(),
   }
 }
 </script>
@@ -211,7 +168,7 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
     </aside>
 
     <main class="chat-main">
-      <header v-if="activeChatTitle" class="chat-title">
+      <header v-if="activeChat?.title" class="chat-title">
         <button
           class="delete-chat"
           :disabled="streaming"
@@ -221,7 +178,7 @@ function localMessage(chatId: number, role: 'user' | 'assistant', content: strin
         >
           <span aria-hidden="true">🗑</span>
         </button>
-        <span>{{ activeChatTitle }}</span>
+        <span>{{ activeChat.title }}</span>
       </header>
 
       <p v-if="error" class="error-banner">{{ error }}</p>
