@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -51,3 +51,18 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     chat: Mapped["Chat"] = relationship(back_populates="messages")
+
+
+class TokenUsage(Base):
+    """Токены, потраченные на один ответ ассистента (промпт всей истории + ответ)."""
+
+    __tablename__ = "token_usage"
+    __table_args__ = (Index("ix_token_usage_user_created", "user_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    model: Mapped[str] = mapped_column(String(128))
+    prompt_tokens: Mapped[int]
+    completion_tokens: Mapped[int]
+    total_tokens: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
