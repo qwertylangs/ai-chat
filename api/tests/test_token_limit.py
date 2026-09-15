@@ -134,3 +134,18 @@ def test_limit_is_per_user(client, alice, auth, llm, db_session):
     resp = send(client, SimpleNamespace(headers=bob_headers, chat_id=bob_chat))
 
     assert resp.status_code == 200
+
+
+def test_usage_endpoint_returns_current_status(client, alice, llm, db_session):
+    db_session.add(TokenUsage(user_id=alice.id, model="m", prompt_tokens=30, completion_tokens=0,
+                              total_tokens=30))
+    db_session.commit()
+
+    body = client.get("/api/usage", headers=alice.headers).json()
+
+    assert (body["limit"], body["used"], body["remaining"]) == (LIMIT, 30, 70)
+    assert body["resets_at"].endswith("Z")
+
+
+def test_usage_endpoint_requires_token(client):
+    assert client.get("/api/usage").status_code == 401
