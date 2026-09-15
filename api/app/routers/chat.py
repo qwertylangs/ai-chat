@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import settings
 from app.database import SessionLocal, get_db
 from app.deps import get_current_user, get_own_chat
+from app.limits.counting import count_tokens
+from app.limits.service import ensure_within_limit, record_usage
 from app.models import Chat, Message, User
 from app.openai_client import build_openai_client
 from app.schemas import ChatIn, ChatOut, MessageIn, MessageOut
@@ -104,6 +106,7 @@ def send_message(
     user: User = Depends(get_current_user),
 ):
     chat = get_own_chat(chat_id, user, db)
+    ensure_within_limit(db, user)  # до сохранения: отклонённое сообщение не попадает в историю
 
     # Сообщение пользователя сохраняем сразу (до начала стрима).
     db.add(Message(chat_id=chat.id, role="user", content=payload.content))
@@ -123,24 +126,29 @@ def send_message(
     model = payload.model or settings.openrouter_model
 
     return StreamingResponse(
-        stream_assistant_reply(history, model, chat.id),
+        stream_assistant_reply(history, model, chat.id, user.id),
         media_type="text/event-stream",
     )
 
 
-def stream_assistant_reply(history: list[dict], model: str, chat_id: int):
-    """Стримит ответ OpenRouter клиенту «как есть» (SSE) и сохраняет полный ответ в БД."""
+def stream_assistant_reply(history: list[dict], model: str, chat_id: int, user_id: int):
+    """Стримит ответ OpenRouter клиенту «как есть» (SSE), сохраняет ответ и расход токенов."""
     client = build_openai_client()
     accumulated = ""
+    usage = None
 
     try:
         stream = client.chat.completions.create(
-            model=model, messages=history, stream=True
+            model=model,
+            messages=history,
+            stream=True,
+            stream_options={"include_usage": True},  # usage придёт последним чанком
         )
         for chunk in stream:
             delta = chunk.choices[0].delta.content if chunk.choices else None
             if delta:
                 accumulated += delta
+            usage = chunk.usage or usage
             # Прокидываем чанк наружу в исходном формате OpenAI (решение Q5a).
             yield f"data: {chunk.model_dump_json()}\n\n"
         yield "data: [DONE]\n\n"
@@ -149,8 +157,10 @@ def stream_assistant_reply(history: list[dict], model: str, chat_id: int):
         yield f'event: error\ndata: {json.dumps({"detail": str(exc)})}\n\n'
         return
 
-    # Ассистентское сообщение сохраняем только после успешного завершения стрима.
-    if accumulated:
-        with SessionLocal() as db:
+    # Ответ и расход сохраняем только после успешного стрима, одной транзакцией.
+    count = count_tokens(usage, history, accumulated, settings.token_estimate_chars_per_token)
+    with SessionLocal() as db:
+        if accumulated:
             db.add(Message(chat_id=chat_id, role="assistant", content=accumulated))
-            db.commit()
+        record_usage(db, user_id, model, count)
+        db.commit()

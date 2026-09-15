@@ -50,3 +50,12 @@ class MessageOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UsageOut(BaseModel):
+    limit: int
+    used: int
+    remaining: int
+    resets_at: datetime
+
+    model_config = {"from_attributes": True}
