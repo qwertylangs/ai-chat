@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8931
 REPLY = "Это ответ стаба OpenRouter."
+TOTAL_TOKENS = 300  # e2e: TOKEN_LIMIT=1000 → лимит кончается после 4-го ответа
 
 
 def chunk(content: str) -> dict:
@@ -33,6 +34,9 @@ class Handler(BaseHTTPRequestHandler):
             text = word if i == 0 else " " + word
             self.wfile.write(f"data: {json.dumps(chunk(text))}\n\n".encode())
             self.wfile.flush()
+        usage = {**chunk(""), "choices": [],
+                 "usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": TOTAL_TOKENS}}
+        self.wfile.write(f"data: {json.dumps(usage)}\n\n".encode())
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Message } from '../api'
+import type { Message, Usage } from '../api'
 import { useAutoScroll } from '../composables/useAutoScroll'
 
 const props = defineProps<{
@@ -9,12 +9,15 @@ const props = defineProps<{
   messages: Message[]
   streaming: boolean
   error: string
+  usage: Usage | null
+  exhausted: boolean
+  resetsAtLabel: string
 }>()
 
 const emit = defineEmits<{ send: [content: string]; delete: [] }>()
 
 const input = ref('')
-const canSend = computed(() => !!input.value.trim() && !props.streaming)
+const canSend = computed(() => !!input.value.trim() && !props.streaming && !props.exhausted)
 
 const { containerEl: messagesEl, isAtBottom, scrollToBottom } = useAutoScroll()
 
@@ -72,11 +75,18 @@ function remove() {
     <form class="composer" @submit.prevent="submit">
       <input
         v-model="input"
-        :disabled="streaming"
+        :disabled="streaming || exhausted"
         placeholder="Сообщение… (Enter — отправить)"
       />
       <button type="submit" :disabled="!canSend">➤</button>
     </form>
+
+    <p v-if="exhausted" class="limit-banner" role="status">
+      Лимит токенов исчерпан. Новые сообщения можно отправить после {{ resetsAtLabel }}
+    </p>
+    <p v-else-if="usage" class="usage-line">
+      Осталось {{ usage.remaining }} из {{ usage.limit }} токенов · сброс в {{ resetsAtLabel }}
+    </p>
   </main>
 </template>
 
@@ -222,5 +232,22 @@ function remove() {
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+}
+
+.usage-line {
+  margin: 0;
+  padding: 0 16px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.limit-banner {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  background: #3a2f1f;
+  border: 1px solid #6b5a2d;
+  color: #ffd9a0;
+  border-radius: 8px;
+  font-size: 13px;
 }
 </style>

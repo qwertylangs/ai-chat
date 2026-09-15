@@ -4,6 +4,7 @@ import { useAutoClearError } from '../composables/useAutoClearError'
 import { useChatSearch } from '../composables/useChatSearch'
 import { useChats } from '../composables/useChats'
 import { useConversation } from '../composables/useConversation'
+import { useTokenUsage } from '../composables/useTokenUsage'
 import ChatSidebar from './ChatSidebar.vue'
 import ChatWindow from './ChatWindow.vue'
 
@@ -24,15 +25,21 @@ const {
 } = useChats(error, () => {
   search.value = ''
 })
+const { usage, exhausted, resetsAtLabel, refresh: refreshUsage, setUsage } = useTokenUsage()
 const { messages, streaming, send } = useConversation({
   activeChatId,
   error,
   consumeFresh,
   createChat,
   refreshChats,
+  refreshUsage,
+  setUsage,
 })
 
-onMounted(loadChats)
+onMounted(() => {
+  loadChats()
+  refreshUsage()
+})
 
 const displayedChats = computed(() =>
   search.value.trim() ? searchResults.value : chats.value,
@@ -61,6 +68,9 @@ const noResults = computed(
       :messages="messages"
       :streaming="streaming"
       :error="error"
+      :usage="usage"
+      :exhausted="exhausted"
+      :resets-at-label="resetsAtLabel"
       @send="send"
       @delete="deleteActiveChat"
     />
