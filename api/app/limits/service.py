@@ -43,8 +43,7 @@ def get_usage(db: Session, user: User) -> UsageStatus:
 
 
 def ensure_within_limit(db: Session, user: User) -> None:
-    # lazy: проверка до запроса — последний ответ может перебрать лимит, параллельные запросы
-    # могут оба пройти; нужна жёсткая граница — резервировать токены до запроса
+    # lazy: проверка до запроса — последний ответ и параллельные запросы могут перебрать лимит; жёстко — резервировать токены
     status = get_usage(db, user)
     if status.used >= status.limit:
         raise TokenLimitExceeded(status)
