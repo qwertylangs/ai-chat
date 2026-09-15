@@ -87,4 +87,28 @@ describe('useTokenUsage', () => {
     await expect(refresh()).resolves.toBeUndefined()
     expect(state.value).toBeNull()
   })
+
+  it('после неудачного обновления повторяет попытку', async () => {
+    getUsage.mockRejectedValueOnce(new Error('down')).mockResolvedValue(usage())
+    const { usage: state, refresh } = setup()
+
+    await refresh()
+    expect(state.value).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(getUsage).toHaveBeenCalledTimes(2)
+    expect(state.value).toEqual(usage())
+  })
+
+  it('прошедший resets_at не зацикливает обновления', async () => {
+    const { setUsage } = setup()
+    getUsage.mockResolvedValue(usage())
+
+    setUsage(usage({ resets_at: new Date(NOW.getTime() - 60_000).toISOString() }))
+    await vi.advanceTimersByTimeAsync(999)
+    expect(getUsage).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsage).toHaveBeenCalledOnce()
+  })
 })
