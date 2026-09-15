@@ -1,3 +1,4 @@
+from pydantic import NonNegativeInt, PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,10 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 дней, без refresh-логики
 
     database_url: str = "sqlite:///./chat.db"
+
+    token_limit: NonNegativeInt = 1000  # на пользователя за окно; маленький, чтобы ловить за 2-3 промпта
+    token_limit_period_minutes: PositiveInt = 1440  # 1440 → сброс в 00:00 UTC
+    token_estimate_chars_per_token: PositiveInt = 4  # если провайдер не вернул usage
 
     model_config = SettingsConfigDict(env_file=".env")
 
