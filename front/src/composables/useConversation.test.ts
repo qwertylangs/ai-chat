@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { api, type Chat, type Message } from '../api'
+import { api, TokenLimitError, type Chat, type Message } from '../api'
 import { useConversation } from './useConversation'
 
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
   api: { listMessages: vi.fn(), sendMessage: vi.fn() },
 }))
 const listMessages = vi.mocked(api.listMessages)
@@ -26,6 +27,8 @@ function setup(overrides: Partial<Parameters<typeof useConversation>[0]> = {}) {
     consumeFresh: vi.fn(() => false),
     createChat: vi.fn(async () => chat(7)),
     refreshChats: vi.fn(async () => {}),
+    refreshUsage: vi.fn(async () => {}),
+    setUsage: vi.fn(),
     ...overrides,
   }
   const scope = effectScope()
@@ -160,5 +163,60 @@ describe('useConversation', () => {
     await send('   ')
 
     expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('после ответа обновляет счётчик токенов', async () => {
+    const refreshUsage = vi.fn(async () => {})
+    const { send } = setup({ activeChatId: ref<number | null>(1), refreshUsage })
+    sendMessage.mockResolvedValue(undefined)
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(refreshUsage).toHaveBeenCalled()
+  })
+
+  it('исчерпанный лимит кладёт остаток в счётчик и не показывает ошибку', async () => {
+    const setUsage = vi.fn()
+    const { error, send } = setup({ activeChatId: ref<number | null>(1), setUsage })
+    const usage = { limit: 1000, used: 1200, remaining: 0, resets_at: '2026-09-17T00:00:00Z' }
+    sendMessage.mockRejectedValue(new TokenLimitError(usage))
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(setUsage).toHaveBeenCalledWith(usage)
+    expect(error.value).toBe('')
+  })
+
+  it('исчерпанный лимит возвращает отправленный текст в черновик', async () => {
+    const { draft, send } = setup({ activeChatId: ref<number | null>(1) })
+    const usage = { limit: 1000, used: 1200, remaining: 0, resets_at: '2026-09-17T00:00:00Z' }
+    sendMessage.mockRejectedValue(new TokenLimitError(usage))
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(draft.value).toBe('Вопрос')
+  })
+
+  it('обычная ошибка отправки не восстанавливает черновик', async () => {
+    const { draft, send } = setup({ activeChatId: ref<number | null>(1) })
+    sendMessage.mockRejectedValue(new Error('stream failed'))
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(draft.value).toBe('')
+  })
+
+  it('успешная отправка оставляет черновик пустым', async () => {
+    const { draft, send } = setup({ activeChatId: ref<number | null>(1) })
+    sendMessage.mockResolvedValue(undefined)
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(draft.value).toBe('')
   })
 })

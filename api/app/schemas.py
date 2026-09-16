@@ -39,7 +39,7 @@ class ChatOut(BaseModel):
 
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
-    model: str | None = None  # пусто → модель из .env (OPENROUTER_MODEL)
+    model: str | None = Field(default=None, max_length=128)  # столько же, сколько TokenUsage.model
 
 
 class MessageOut(BaseModel):
@@ -48,5 +48,14 @@ class MessageOut(BaseModel):
     role: str
     content: str
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UsageOut(BaseModel):
+    limit: int
+    used: int
+    remaining: int
+    resets_at: datetime
 
     model_config = {"from_attributes": True}

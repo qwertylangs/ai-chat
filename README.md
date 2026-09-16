@@ -10,7 +10,7 @@
 ai-chat/
 ├── api/                        # бэкенд (uv / venv)
 │   ├── pyproject.toml          # зависимости: fastapi, sqlalchemy, openai, pyjwt, pwdlib[argon2]
-│   ├── .env / .env.example     # OPENROUTER_API_KEY, JWT_SECRET, DATABASE_URL
+│   ├── .env / .env.example     # OPENROUTER_API_KEY, JWT_SECRET, DATABASE_URL, TOKEN_LIMIT*
 │   ├── tests/                  # pytest: TestClient + in-memory SQLite
 │   └── app/
 │       ├── main.py             # FastAPI + раздача собранного front/dist
@@ -21,9 +21,11 @@ ai-chat/
 │       ├── security.py         # Argon2, JWT
 │       ├── deps.py             # get_current_user, get_own_chat
 │       ├── openai_client.py    # клиент OpenRouter
+│       ├── limits/             # лимит токенов: окно, подсчёт, сервис (см. ADR-0005)
 │       └── routers/
 │           ├── auth.py         # /auth/register, /auth/login
-│           └── chat.py         # /api/chats..., /api/chats/search, /api/chats/{id}/messages (SSE)
+│           ├── chat.py         # /api/chats..., /api/chats/search, /api/chats/{id}/messages (SSE)
+│           └── usage.py        # /api/usage — остаток лимита токенов
 ├── front/                      # фронтенд (npm)
 │   ├── vite.config.ts          # proxy /api и /auth → localhost:8000
 │   ├── eslint.config.js        # flat config: typescript-eslint + eslint-plugin-vue (essential)
@@ -94,11 +96,19 @@ Pre-commit хук (`.githooks/pre-commit`) гоняет `lint` + тесты, е�
 | POST | `/api/chats` | создать чат (title необязателен) |
 | DELETE | `/api/chats/{id}` | удалить чат вместе с его сообщениями (204) |
 | GET | `/api/chats/{id}/messages` | история сообщений чата |
-| POST | `/api/chats/{id}/messages` | отправить сообщение; ответ — SSE-стрим |
+| POST | `/api/chats/{id}/messages` | отправить сообщение; ответ — SSE-стрим; `429`, если исчерпан лимит токенов |
+| GET | `/api/usage` | остаток лимита токенов: `limit`, `used`, `remaining`, `resets_at` |
 
 Все `/api/*` требуют заголовок `Authorization: Bearer <access_token>`.
 Ответ ассистента стримится «как есть» в формате чанков OpenAI (см. ADR-0001) и
 сохраняется в БД целиком после завершения стрима.
+
+**Лимит токенов**: у каждого пользователя `TOKEN_LIMIT` токенов (по умолчанию 1000) за
+окно `TOKEN_LIMIT_PERIOD_MINUTES` (по умолчанию 1440 — сброс в 00:00 UTC). Считается
+`usage` OpenRouter (вся история чата + ответ), без него — оценка
+`символы / TOKEN_ESTIMATE_CHARS_PER_TOKEN`. Проверка до запроса к модели, поэтому
+последний ответ может немного превысить лимит. При исчерпании — `429` с
+`code: "token_limit_exceeded"`, `resets_at` и `Retry-After`.
 
 ## Зафиксированные решения
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, getToken, setToken } from './api'
+import { api, getToken, setToken, TokenLimitError } from './api'
 
 /** Мок fetch: возвращает не-стримовый JSON-ответ. */
 function jsonResponse(body: unknown, ok = true, statusText = 'OK') {
@@ -118,6 +118,15 @@ describe('request', () => {
 
     expect(getToken()).toBe('tok-1')
   })
+
+  it('getUsage читает статус лимита', async () => {
+    const usage = { limit: 1000, used: 300, remaining: 700, resets_at: '2026-09-17T00:00:00Z' }
+    fetchMock.mockResolvedValue(jsonResponse(usage))
+
+    await expect(api.getUsage()).resolves.toEqual(usage)
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/usage')
+  })
 })
 
 describe('sendMessage (SSE)', () => {
@@ -177,5 +186,46 @@ describe('sendMessage (SSE)', () => {
     fetchMock.mockResolvedValue(streamResponse([], false))
 
     await expect(api.sendMessage(1, 'hi', () => {})).rejects.toThrow('boom')
+  })
+
+  it('на 429 с token_limit_exceeded бросает TokenLimitError с остатком', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      json: () =>
+        Promise.resolve({
+          detail: 'Лимит токенов исчерпан',
+          code: 'token_limit_exceeded',
+          limit: 1000,
+          used: 1200,
+          remaining: 0,
+          resets_at: '2026-09-17T00:00:00Z',
+        }),
+    } as unknown as Response)
+
+    const err = await api.sendMessage(1, 'hi', () => {}).catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(TokenLimitError)
+    expect((err as TokenLimitError).usage).toEqual({
+      limit: 1000,
+      used: 1200,
+      remaining: 0,
+      resets_at: '2026-09-17T00:00:00Z',
+    })
+  })
+
+  it('429 без кода лимита — обычный Error с detail', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      json: () => Promise.resolve({ detail: 'Слишком часто' }),
+    } as unknown as Response)
+
+    const err = await api.sendMessage(1, 'hi', () => {}).catch((e: unknown) => e)
+
+    expect(err).not.toBeInstanceOf(TokenLimitError)
+    expect((err as Error).message).toBe('Слишком часто')
   })
 })
