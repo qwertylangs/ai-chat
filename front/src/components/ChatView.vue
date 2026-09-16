@@ -26,7 +26,7 @@ const {
   search.value = ''
 })
 const { usage, exhausted, resetsAtLabel, refresh: refreshUsage, setUsage } = useTokenUsage()
-const { messages, streaming, send } = useConversation({
+const { messages, streaming, draft, send } = useConversation({
   activeChatId,
   error,
   consumeFresh,
@@ -63,6 +63,7 @@ const noResults = computed(
     />
 
     <ChatWindow
+      v-model:draft="draft"
       :active-chat-id="activeChatId"
       :chat-title="activeChat?.title ?? ''"
       :messages="messages"

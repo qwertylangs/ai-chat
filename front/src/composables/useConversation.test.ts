@@ -188,4 +188,35 @@ describe('useConversation', () => {
     expect(setUsage).toHaveBeenCalledWith(usage)
     expect(error.value).toBe('')
   })
+
+  it('исчерпанный лимит возвращает отправленный текст в черновик', async () => {
+    const { draft, send } = setup({ activeChatId: ref<number | null>(1) })
+    const usage = { limit: 1000, used: 1200, remaining: 0, resets_at: '2026-09-17T00:00:00Z' }
+    sendMessage.mockRejectedValue(new TokenLimitError(usage))
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(draft.value).toBe('Вопрос')
+  })
+
+  it('обычная ошибка отправки не восстанавливает черновик', async () => {
+    const { draft, send } = setup({ activeChatId: ref<number | null>(1) })
+    sendMessage.mockRejectedValue(new Error('stream failed'))
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(draft.value).toBe('')
+  })
+
+  it('успешная отправка оставляет черновик пустым', async () => {
+    const { draft, send } = setup({ activeChatId: ref<number | null>(1) })
+    sendMessage.mockResolvedValue(undefined)
+    listMessages.mockResolvedValue([])
+
+    await send('Вопрос')
+
+    expect(draft.value).toBe('')
+  })
 })

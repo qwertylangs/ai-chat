@@ -100,6 +100,34 @@ describe('useTokenUsage', () => {
     expect(state.value).toEqual(usage())
   })
 
+  it('после остановки scope успешный refresh не планирует новый таймер', async () => {
+    const scope = effectScope()
+    scopes.push(scope)
+    const { refresh } = scope.run(() => useTokenUsage())!
+    getUsage.mockResolvedValue(usage({ resets_at: new Date(NOW.getTime() + 1_000).toISOString() }))
+
+    const pending = refresh()
+    scope.stop()
+    await pending
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(getUsage).toHaveBeenCalledOnce()
+  })
+
+  it('после остановки scope неудачный refresh не планирует повтор', async () => {
+    const scope = effectScope()
+    scopes.push(scope)
+    const { refresh } = scope.run(() => useTokenUsage())!
+    getUsage.mockRejectedValue(new Error('down'))
+
+    const pending = refresh()
+    scope.stop()
+    await pending
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(getUsage).toHaveBeenCalledOnce()
+  })
+
   it('прошедший resets_at не зацикливает обновления', async () => {
     const { setUsage } = setup()
     getUsage.mockResolvedValue(usage())

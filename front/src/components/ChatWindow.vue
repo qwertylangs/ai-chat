@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import type { Message, Usage } from '../api'
 import { useAutoScroll } from '../composables/useAutoScroll'
 
@@ -16,8 +16,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ send: [content: string]; delete: [] }>()
 
-const input = ref('')
-const canSend = computed(() => !!input.value.trim() && !props.streaming && !props.exhausted)
+const draft = defineModel<string>('draft', { required: true })
+const canSend = computed(() => !!draft.value.trim() && !props.streaming && !props.exhausted)
 
 const { containerEl: messagesEl, isAtBottom, scrollToBottom } = useAutoScroll()
 
@@ -33,8 +33,8 @@ watch(
 
 function submit() {
   if (!canSend.value) return
-  const content = input.value
-  input.value = ''
+  const content = draft.value
+  draft.value = ''
   emit('send', content)
 }
 
@@ -74,7 +74,7 @@ function remove() {
 
     <form class="composer" @submit.prevent="submit">
       <input
-        v-model="input"
+        v-model="draft"
         :disabled="streaming || exhausted"
         placeholder="Сообщение… (Enter — отправить)"
       />

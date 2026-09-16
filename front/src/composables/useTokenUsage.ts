@@ -21,25 +21,33 @@ export function useTokenUsage() {
   )
 
   let timer: ReturnType<typeof setTimeout> | undefined
+  let disposed = false
 
   function setUsage(next: Usage) {
     usage.value = next
     clearTimeout(timer)
+    if (disposed) return
     const delay = new Date(next.resets_at).getTime() - Date.now() + RESET_GRACE_MS
     timer = setTimeout(refresh, Math.min(Math.max(delay, RESET_GRACE_MS), MAX_TIMEOUT_MS))
   }
 
   async function refresh() {
     try {
-      setUsage(await api.getUsage())
+      const next = await api.getUsage()
+      if (disposed) return
+      setUsage(next)
     } catch {
-      // Счётчик вторичен: при сбое оставляем прежнее значение, отправку не ломаем.
+      // lazy: счётчик вторичен — молча повторяем; показать ошибку, если пользователи начнут жаловаться на устаревший остаток
+      if (disposed) return
       clearTimeout(timer)
       timer = setTimeout(refresh, RETRY_MS)
     }
   }
 
-  onScopeDispose(() => clearTimeout(timer))
+  onScopeDispose(() => {
+    disposed = true
+    clearTimeout(timer)
+  })
 
   return { usage, exhausted, resetsAtLabel, refresh, setUsage }
 }

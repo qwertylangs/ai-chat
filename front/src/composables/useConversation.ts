@@ -25,6 +25,7 @@ export function useConversation({
 }: Deps) {
   const messages = ref<Message[]>([])
   const streaming = ref(false)
+  const draft = ref('')
 
   watch(activeChatId, async (id, _old, onCleanUp) => {
     if (id === null || consumeFresh(id)) {
@@ -65,8 +66,12 @@ export function useConversation({
       })
     } catch (err) {
       // Исчерпание показывает отдельный блок в окне чата, а не баннер ошибки.
-      if (err instanceof TokenLimitError) setUsage(err.usage)
-      else error.value = errorMessage(err)
+      if (err instanceof TokenLimitError) {
+        setUsage(err.usage)
+        draft.value = text // сообщение не сохранилось на сервере — возвращаем в композер
+      } else {
+        error.value = errorMessage(err)
+      }
     } finally {
       streaming.value = false
       // Синхронизируемся с БД: ответ ассистента сохранён сервером, чат мог получить название.
@@ -80,5 +85,5 @@ export function useConversation({
     }
   }
 
-  return { messages, streaming, send }
+  return { messages, streaming, draft, send }
 }
