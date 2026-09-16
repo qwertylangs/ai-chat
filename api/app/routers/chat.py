@@ -136,6 +136,7 @@ def stream_assistant_reply(history: list[dict], model: str, chat_id: int, user_i
     client = build_openai_client()
     accumulated = ""
     usage = None
+    failed = False
 
     try:
         stream = client.chat.completions.create(
@@ -154,13 +155,16 @@ def stream_assistant_reply(history: list[dict], model: str, chat_id: int, user_i
         yield "data: [DONE]\n\n"
     except Exception as exc:
         # Ошибка (например, невалидный ключ OpenRouter) — отдаём событием SSE.
+        failed = True
         yield f'event: error\ndata: {json.dumps({"detail": str(exc)})}\n\n'
         return
-
-    # Ответ и расход сохраняем только после успешного стрима, одной транзакцией.
-    count = count_tokens(usage, history, accumulated, settings.token_estimate_chars_per_token)
-    with SessionLocal() as db:
-        if accumulated:
-            db.add(Message(chat_id=chat_id, role="assistant", content=accumulated))
-        record_usage(db, user_id, model, count)
-        db.commit()
+    finally:
+        # Клиент мог оборвать соединение (GeneratorExit, не Exception) — ответ уже
+        # сгенерирован и оплачен провайдером, поэтому сохраняем и в этом случае.
+        if not failed and (accumulated or usage is not None):
+            count = count_tokens(usage, history, accumulated, settings.token_estimate_chars_per_token)
+            with SessionLocal() as db:
+                if accumulated:
+                    db.add(Message(chat_id=chat_id, role="assistant", content=accumulated))
+                record_usage(db, user_id, model, count)
+                db.commit()

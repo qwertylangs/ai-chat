@@ -65,4 +65,4 @@ class TokenUsage(Base):
     prompt_tokens: Mapped[int]
     completion_tokens: Mapped[int]
     total_tokens: Mapped[int]
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)  # только UTC — SQLite теряет tzinfo

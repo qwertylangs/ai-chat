@@ -39,7 +39,7 @@ class ChatOut(BaseModel):
 
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
-    model: str | None = None  # пусто → модель из .env (OPENROUTER_MODEL)
+    model: str | None = Field(default=None, max_length=128)  # столько же, сколько TokenUsage.model
 
 
 class MessageOut(BaseModel):

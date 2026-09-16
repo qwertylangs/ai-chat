@@ -101,6 +101,37 @@ def test_failed_stream_records_nothing(client, alice, llm, db_session):
     assert spent(db_session, alice.id) == []
 
 
+def test_client_disconnect_mid_stream_still_records_usage(alice, llm, db_session):
+    """Клиент обрывает SSE-соединение (GeneratorExit) — ответ уже сгенерирован, расход не теряем."""
+    llm.chunks.append(chunk("b" * 40))
+    history = [{"role": "user", "content": "a" * 40}]
+
+    gen = chat_router.stream_assistant_reply(history, "m", alice.chat_id, alice.id)
+    next(gen)
+    gen.close()
+
+    assert spent(db_session, alice.id) == [20]  # (40 + 40) символов / 4
+
+
+def test_rejects_overlong_model_and_records_nothing(client, alice, llm, db_session):
+    resp = client.post(
+        f"/api/chats/{alice.chat_id}/messages",
+        json={"content": "Привет", "model": "m" * 129},
+        headers=alice.headers,
+    )
+
+    assert resp.status_code == 422
+    assert spent(db_session, alice.id) == []
+
+
+def test_empty_successful_stream_records_nothing(client, alice, llm, db_session):
+    llm.chunks.append(chunk())  # чанк без content и без usage
+
+    send(client, alice)
+
+    assert spent(db_session, alice.id) == []
+
+
 def test_rejects_with_429_when_limit_exhausted(client, alice, llm, db_session):
     exhaust(db_session, alice.id)
 
