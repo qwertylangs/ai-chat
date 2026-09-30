@@ -1,5 +1,5 @@
 import { ref, watch, type Ref } from 'vue'
-import { api, type Chat, type Message } from '../api'
+import { api, TokenLimitError, type Chat, type Message, type Usage } from '../api'
 import { errorMessage } from '../errors'
 import { localMessage } from '../message'
 
@@ -9,12 +9,23 @@ interface Deps {
   consumeFresh: (id: number | null) => boolean
   createChat: () => Promise<Chat>
   refreshChats: () => Promise<void>
+  refreshUsage: () => Promise<void>
+  setUsage: (usage: Usage) => void
 }
 
 /** Лента активного чата: загрузка истории и отправка сообщения со стримом ответа. */
-export function useConversation({ activeChatId, error, consumeFresh, createChat, refreshChats }: Deps) {
+export function useConversation({
+  activeChatId,
+  error,
+  consumeFresh,
+  createChat,
+  refreshChats,
+  refreshUsage,
+  setUsage,
+}: Deps) {
   const messages = ref<Message[]>([])
   const streaming = ref(false)
+  const draft = ref('')
 
   watch(activeChatId, async (id, _old, onCleanUp) => {
     if (id === null || consumeFresh(id)) {
@@ -54,7 +65,13 @@ export function useConversation({ activeChatId, error, consumeFresh, createChat,
         messages.value[assistantIndex].content += chunk
       })
     } catch (err) {
-      error.value = errorMessage(err)
+      // Исчерпание показывает отдельный блок в окне чата, а не баннер ошибки.
+      if (err instanceof TokenLimitError) {
+        setUsage(err.usage)
+        draft.value = text // сообщение не сохранилось на сервере — возвращаем в композер
+      } else {
+        error.value = errorMessage(err)
+      }
     } finally {
       streaming.value = false
       // Синхронизируемся с БД: ответ ассистента сохранён сервером, чат мог получить название.
@@ -64,8 +81,9 @@ export function useConversation({ activeChatId, error, consumeFresh, createChat,
           .catch(() => messages.value)
         await refreshChats()
       }
+      await refreshUsage()
     }
   }
 
-  return { messages, streaming, send }
+  return { messages, streaming, draft, send }
 }

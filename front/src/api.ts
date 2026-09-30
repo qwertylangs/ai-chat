@@ -17,6 +17,23 @@ export interface Message {
   created_at: string
 }
 
+export interface Usage {
+  limit: number
+  used: number
+  remaining: number
+  resets_at: string
+}
+
+export class TokenLimitError extends Error {
+  readonly usage: Usage
+
+  constructor(usage: Usage) {
+    super('Лимит токенов исчерпан')
+    this.name = 'TokenLimitError'
+    this.usage = usage
+  }
+}
+
 const TOKEN_KEY = 'ai_chat_token'
 
 export function getToken(): string | null {
@@ -28,6 +45,15 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+async function responseError(res: Response): Promise<Error> {
+  const body = await res.json().catch(() => ({ detail: res.statusText }))
+  if (res.status === 429 && body.code === 'token_limit_exceeded') {
+    const { limit, used, remaining, resets_at } = body
+    return new TokenLimitError({ limit, used, remaining, resets_at })
+  }
+  return new Error(body.detail ?? 'Request failed')
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -37,10 +63,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers['Authorization'] = `Bearer ${token}`
 
   const res = await fetch(path, { ...init, headers })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(body.detail ?? 'Request failed')
-  }
+  if (!res.ok) throw await responseError(res)
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
@@ -85,6 +108,10 @@ export const api = {
     return request<Message[]>(`/api/chats/${chatId}/messages`)
   },
 
+  getUsage() {
+    return request<Usage>('/api/usage')
+  },
+
   /**
    * Отправляет сообщение и стримит ответ по SSE.
    * onChunk вызывается с каждым фрагментом текста ответа.
@@ -104,10 +131,7 @@ export const api = {
       body: JSON.stringify({ content }),
     })
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ detail: res.statusText }))
-      throw new Error(body.detail ?? 'Request failed')
-    }
+    if (!res.ok) throw await responseError(res)
 
     // Парсим SSE: события разделяются пустой строкой, данные — строкой "data: ...".
     const reader = res.body!.getReader()

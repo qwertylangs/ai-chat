@@ -25,6 +25,7 @@ export default defineConfig({
         DATABASE_URL: `sqlite:///${DB_FILE}`,
         OPENROUTER_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
         OPENROUTER_API_KEY: 'stub-key',
+        TOKEN_LIMIT: '1000',
       },
     },
     {
